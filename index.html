@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,viewport-fit=cover">
-<title>OP·TCG Builder v2.2.0</title>
+<title>OP·TCG Builder v2.3.0</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;700;900&family=DM+Mono:wght@500&display=swap" rel="stylesheet">
 <style>
@@ -154,6 +154,18 @@ html,body{height:100%;background:var(--bg);color:var(--txt);font-family:'Noto Sa
 .dlqty{display:flex;align-items:center;gap:3px;flex-shrink:0}
 .dlqb{width:18px;height:18px;border-radius:50%;background:var(--sur3);border:none;color:var(--txt);font-size:12px;display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0}
 .dlnum{font-size:11px;font-weight:900;min-width:14px;text-align:center}
+/* リアルタイム分析パネル */
+.danabtn{background:none;border:none;color:var(--txt3);font-size:10px;padding:2px 5px;cursor:pointer;border-radius:4px;display:flex;align-items:center;gap:2px;transition:color .2s}
+.danabtn.active{color:var(--gold)}
+#dAna{background:var(--sur2);border-bottom:1px solid var(--brd);padding:8px 12px 10px;flex-shrink:0;display:flex;flex-direction:column;gap:6px}
+.danacbs{display:flex;align-items:flex-end;gap:2px;height:44px}
+.danacb{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;gap:1px}
+.danacbbar{width:100%;border-radius:2px 2px 0 0;background:var(--gold);opacity:.8;min-height:2px;transition:height .3s}
+.danacblbl{font-size:7px;color:var(--txt3);text-align:center;width:100%}
+.danacbnum{font-size:7px;color:var(--txt2);min-height:10px;text-align:center}
+.danactr{font-size:11px;font-weight:700;padding:3px 7px;border-radius:5px;background:var(--sur3);display:inline-block}
+.danactr.ok{color:#22c55e}.danactr.warn{color:#f59e0b}.danactr.bad{color:#ef4444}
+.danacolbar{height:5px;border-radius:3px;display:flex;overflow:hidden;margin-bottom:2px}
 .dsavebar{padding:4px 10px;border-top:1px solid var(--brd);display:flex;gap:5px;flex-shrink:0;background:var(--bg);align-items:center}
 .btnd{background:var(--sur2);color:var(--txt2);border:1px solid var(--brd2);width:34px;flex:none}
 .mdkbtn{position:fixed;bottom:calc(var(--tbh) + var(--sb) + 12px);right:16px;z-index:50;width:52px;height:52px;border-radius:50%;background:var(--gold);border:none;color:#000;font-size:22px;display:flex;align-items:center;justify-content:center;cursor:pointer;box-shadow:0 4px 16px rgba(232,162,0,.4)}
@@ -305,7 +317,7 @@ html,body{height:100%;background:var(--bg);color:var(--txt);font-family:'Noto Sa
 </div>
 
 <header class="hd">
-  <div class="logo" onclick="resetToSearch()" style="cursor:pointer;touch-action:manipulation"><span>OP</span>·TCG BUILDER <span style="font-size:9px;color:var(--txt3);font-weight:400;letter-spacing:0">v2.2.0</span></div>
+  <div class="logo" onclick="resetToSearch()" style="cursor:pointer;touch-action:manipulation"><span>OP</span>·TCG BUILDER <span style="font-size:9px;color:var(--txt3);font-weight:400;letter-spacing:0">v2.3.0</span></div>
   <button class="hbtn" id="hUnlockBtn" onclick="toggleUnlock()" title="枚数制限解除" style="display:none;font-size:18px">🔒</button>
   <button class="hbtn" id="hDkBtn" onclick="openMDk()" title="デッキ" style="display:none">
     🃏<span class="hbdg v" id="hDkBdg">0</span>
@@ -358,8 +370,19 @@ html,body{height:100%;background:var(--bg);color:var(--txt);font-family:'Noto Sa
       </div>
       <div class="dprog">
         <div class="dprogbar"><div class="dprogf" id="dPF"></div></div>
-        <div class="dproginfo" style="justify-content:flex-end">
+        <div class="dproginfo">
+          <button class="danabtn" id="dAnaBtn" onclick="toggleAna()">📊 分析</button>
           <div id="dPMsg" style="font-size:11px;color:var(--txt2)">あと50枚</div>
+        </div>
+      </div>
+      <div id="dAna" style="display:none">
+        <div class="danacbs" id="danaCbs"></div>
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+          <span id="danaCtr" class="danactr">CTR --</span>
+          <div style="flex:1;min-width:80px">
+            <div class="danacolbar" id="danaColBar"></div>
+            <div id="danaColLbl" style="display:flex;flex-wrap:wrap;gap:4px"></div>
+          </div>
         </div>
       </div>
       <div class="dpanel">
@@ -664,7 +687,7 @@ html,body{height:100%;background:var(--bg);color:var(--txt);font-family:'Noto Sa
 
 <script>
 // ════════════════════════════════════════════════════════
-// OP·TCG BUILDER v2.2.0 — IndexedDB対応
+// OP·TCG BUILDER v2.3.0 — IndexedDB対応
 // DB: optcg_db v1
 //   stores: cards(keyPath:id), decks(keyPath:id), ui(keyPath:key)
 // ════════════════════════════════════════════════════════
@@ -1128,6 +1151,53 @@ function updDkPanel(){
     <div class="dlqty"><button class="dlqb" onclick="rmCard('${c.id}')">－</button><span class="dlnum">${cnt}</span><button class="dlqb" onclick="addCard('${c.id}')">＋</button></div></div>`;
   }).join('');
   b.innerHTML=rows;
+  updAna();
+}
+function toggleAna(){
+  const el=document.getElementById('dAna'),btn=document.getElementById('dAnaBtn');
+  if(!el)return;
+  const open=el.style.display==='none';
+  el.style.display=open?'':'none';
+  btn.classList.toggle('active',open);
+  if(open)updAna();
+}
+function updAna(){
+  const el=document.getElementById('dAna');
+  if(!el||el.style.display==='none')return;
+  const all=getAllCards(),entries=Object.entries(deck);
+  const cm={},cc={};
+  let ctrTotal=0,totalCards=0;
+  entries.forEach(([id,cnt])=>{
+    const c=all.find(x=>x.id===id);if(!c)return;
+    totalCards+=cnt;
+    const cost=Math.min(parseInt(c.cost)||0,7);
+    cm[cost]=(cm[cost]||0)+cnt;
+    const cv=parseInt(c.counter)||0;
+    if(cv>0)ctrTotal+=cv*cnt;
+    (c.colors&&c.colors.length?c.colors:[c.color]).filter(Boolean).forEach(col=>{cc[col]=(cc[col]||0)+cnt;});
+  });
+  // コストカーブ
+  const maxC=Math.max(...Object.values(cm),1);
+  const labels=['0','1','2','3','4','5','6','7+'];
+  const cbsEl=document.getElementById('danaCbs');
+  if(cbsEl)cbsEl.innerHTML=labels.map((_,i)=>{
+    const n=cm[i]||0,h=Math.round((n/maxC)*38);
+    return`<div class="danacb"><div class="danacbnum">${n||''}</div><div class="danacbbar" style="height:${h+2}px"></div><div class="danacblbl">${labels[i]}</div></div>`;
+  }).join('');
+  // カウンター
+  const ctrEl=document.getElementById('danaCtr');
+  if(ctrEl){
+    const cls=ctrTotal>=20000?'ok':ctrTotal>=15000?'warn':'bad';
+    ctrEl.className='danactr '+cls;
+    ctrEl.textContent=`CTR ${ctrTotal>=1000?(ctrTotal/1000).toFixed(1)+'K':ctrTotal} / 目標20K+`;
+  }
+  // カラーバー
+  const colBar=document.getElementById('danaColBar'),colLbl=document.getElementById('danaColLbl');
+  if(colBar&&totalCards>0){
+    const ct=Object.values(cc).reduce((s,v)=>s+v,0);
+    colBar.innerHTML=Object.entries(cc).map(([col,n])=>`<div style="width:${(n/ct*100).toFixed(1)}%;height:100%;background:${CM[col]||'#888'}"></div>`).join('');
+    colLbl.innerHTML=Object.entries(cc).sort((a,b)=>b[1]-a[1]).map(([col,n])=>`<span style="font-size:9px;color:var(--txt3)"><span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:${CM[col]||'#888'};vertical-align:middle"></span>${Math.round(n/ct*100)}%</span>`).join('');
+  }
 }
 // ════════ CUSTOM PROMPT (prompt()代替・iOS Safari対応) ════════
 let _ccResolve=null;
