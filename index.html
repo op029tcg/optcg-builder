@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,viewport-fit=cover">
-<title>OP·TCG Builder v2.3.0</title>
+<title>OP·TCG Builder v2.4.0</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;700;900&family=DM+Mono:wght@500&display=swap" rel="stylesheet">
 <style>
@@ -317,7 +317,7 @@ html,body{height:100%;background:var(--bg);color:var(--txt);font-family:'Noto Sa
 </div>
 
 <header class="hd">
-  <div class="logo" onclick="resetToSearch()" style="cursor:pointer;touch-action:manipulation"><span>OP</span>·TCG BUILDER <span style="font-size:9px;color:var(--txt3);font-weight:400;letter-spacing:0">v2.3.0</span></div>
+  <div class="logo" onclick="resetToSearch()" style="cursor:pointer;touch-action:manipulation"><span>OP</span>·TCG BUILDER <span style="font-size:9px;color:var(--txt3);font-weight:400;letter-spacing:0">v2.4.0</span></div>
   <button class="hbtn" id="hUnlockBtn" onclick="toggleUnlock()" title="枚数制限解除" style="display:none;font-size:18px">🔒</button>
   <button class="hbtn" id="hDkBtn" onclick="openMDk()" title="デッキ" style="display:none">
     🃏<span class="hbdg v" id="hDkBdg">0</span>
@@ -376,12 +376,16 @@ html,body{height:100%;background:var(--bg);color:var(--txt);font-family:'Noto Sa
         </div>
       </div>
       <div id="dAna" style="display:none">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:2px">
+          <div style="font-size:9px;color:var(--txt3)">コスト分布</div>
+          <div style="font-size:10px"><span id="danaTot" style="font-weight:900;color:var(--txt)">0</span><span style="color:var(--txt3)">/50</span><span id="danaWarn" style="display:none;color:#f59e0b;margin-left:4px">⚠ 未完成</span></div>
+        </div>
         <div class="danacbs" id="danaCbs"></div>
-        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:2px">
           <span id="danaCtr" class="danactr">CTR --</span>
           <div style="flex:1;min-width:80px">
             <div class="danacolbar" id="danaColBar"></div>
-            <div id="danaColLbl" style="display:flex;flex-wrap:wrap;gap:4px"></div>
+            <div id="danaColLbl" style="display:flex;flex-wrap:wrap;gap:4px;margin-top:2px"></div>
           </div>
         </div>
       </div>
@@ -401,6 +405,9 @@ html,body{height:100%;background:var(--bg);color:var(--txt);font-family:'Noto Sa
     <div style="padding:14px 14px 8px;display:flex;justify-content:space-between;align-items:center;flex-shrink:0">
       <div style="font-size:16px;font-weight:900">保存済みデッキ</div>
       <button class="btn btnp" style="flex:0;padding:0 14px;height:36px;font-size:12px" onclick="goTab('deck')">＋ 新規作成</button>
+    </div>
+    <div style="padding:0 14px 8px;flex-shrink:0">
+      <input class="sinp" id="deckSearchQ" type="text" placeholder="デッキ名で検索…" oninput="renderSaved()" autocomplete="off" spellcheck="false" style="width:100%;height:36px;font-size:13px;box-sizing:border-box">
     </div>
     <div style="flex:1;overflow-y:auto" id="savedList"></div>
   </div>
@@ -687,7 +694,7 @@ html,body{height:100%;background:var(--bg);color:var(--txt);font-family:'Noto Sa
 
 <script>
 // ════════════════════════════════════════════════════════
-// OP·TCG BUILDER v2.3.0 — IndexedDB対応
+// OP·TCG BUILDER v2.4.0 — IndexedDB対応
 // DB: optcg_db v1
 //   stores: cards(keyPath:id), decks(keyPath:id), ui(keyPath:key)
 // ════════════════════════════════════════════════════════
@@ -1075,6 +1082,7 @@ function toggleUnlock(){
     btn.style.borderColor=unlocked?'rgba(239,68,68,.5)':'';
   }
   toast(unlocked?'🔓 制限解除モード ON（枚数無制限）':'🔒 通常モードに戻りました');
+  saveUIToDB();
 }
 function updBuildBadges(){
   document.querySelectorAll('#dCGrid .ck-badge').forEach(el=>{const id=el.dataset.id,cnt=deck[id]||0;el.textContent='×'+cnt;el.style.display=cnt>0?'block':'none';});
@@ -1176,6 +1184,10 @@ function updAna(){
     if(cv>0)ctrTotal+=cv*cnt;
     (c.colors&&c.colors.length?c.colors:[c.color]).filter(Boolean).forEach(col=>{cc[col]=(cc[col]||0)+cnt;});
   });
+  // 総枚数・完成警告
+  const totEl=document.getElementById('danaTot'),warnEl=document.getElementById('danaWarn');
+  if(totEl)totEl.textContent=totalCards;
+  if(warnEl)warnEl.style.display=totalCards>0&&totalCards<50?'':'none';
   // コストカーブ
   const maxC=Math.max(...Object.values(cm),1);
   const labels=['0','1','2','3','4','5','6','7+'];
@@ -1335,8 +1347,11 @@ function closeCard(){
 function renderSaved(){
   const all=getAllCards();
   const sl=document.getElementById('savedList');if(!sl)return;
+  const q=(document.getElementById('deckSearchQ')?.value||'').trim().toLowerCase();
+  const decks=q?_decks.filter(d=>d.name.toLowerCase().includes(q)):_decks;
   if(!_decks.length){sl.innerHTML='<div class="empty"><div class="emico">📋</div><div class="emtxt">保存済みデッキはありません</div></div>';return;}
-  sl.innerHTML=_decks.map((d,i)=>{
+  if(!decks.length){sl.innerHTML='<div class="empty"><div class="emico">🔍</div><div class="emtxt">該当なし</div></div>';return;}
+  sl.innerHTML=decks.map((d,i)=>{
     const lr=all.find(c=>c.id===d.leader);
     const tot=Object.values(d.deck||{}).reduce((s,n)=>s+n,0);
     return`<div class="scard" onclick="openDDMod('${d.id}')">
@@ -1374,7 +1389,7 @@ function openDDMod(deckId){
   let ctr2000=0,ctr1000=0,ctr0=0,ctrTotal=0;
   Object.entries(d.deck||{}).forEach(([id,cnt])=>{
     const c=all.find(x=>x.id===id);if(!c)return;
-    const cv=c.counter||0;
+    const cv=parseInt(c.counter)||0;
     if(cv===2000){ctr2000+=cnt;ctrTotal+=2000*cnt;}
     else if(cv===1000){ctr1000+=cnt;ctrTotal+=1000*cnt;}
     else{ctr0+=cnt;}
@@ -1695,13 +1710,18 @@ async function importJsonCards(arr){
 
 // ════════ UI設定（IndexedDB） ════════
 async function saveUIToDB(){
-  try{await dbPut('ui',{key:'state',gCols,listV,filters:Object.fromEntries(Object.entries(F).map(([k,v])=>[k,[...v]]))});}catch(e){}
+  try{await dbPut('ui',{key:'state',gCols,listV,unlocked,filters:Object.fromEntries(Object.entries(F).map(([k,v])=>[k,[...v]]))});}catch(e){}
 }
 async function loadUIFromDB(){
   try{
     const data=await dbGet('ui','state');if(!data)return;
     if(data.listV)setVLSilent();else if(data.gCols&&[3,4,5].includes(data.gCols))setVSilent(data.gCols);
     if(data.filters)Object.entries(data.filters).forEach(([k,vals])=>{if(!F[k])return;vals.forEach(v=>{F[k].add(v);const el=document.querySelector(`[data-f="${k}"][data-v="${v}"]`);if(el)el.classList.add('on');});});
+    if(data.unlocked){
+      unlocked=true;
+      const btn=document.getElementById('hUnlockBtn');
+      if(btn){btn.textContent='🔓';btn.style.background='rgba(239,68,68,.25)';btn.style.borderColor='rgba(239,68,68,.5)';}
+    }
     updFBdg();
   }catch(e){}
 }
