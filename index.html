@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,viewport-fit=cover">
-<title>OP·TCG Builder v2.6.0</title>
+<title>OP·TCG Builder v2.7.0</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;700;900&family=DM+Mono:wght@500&display=swap" rel="stylesheet">
 <style>
@@ -317,7 +317,7 @@ html,body{height:100%;background:var(--bg);color:var(--txt);font-family:'Noto Sa
 </div>
 
 <header class="hd">
-  <div class="logo" onclick="resetToSearch()" style="cursor:pointer;touch-action:manipulation"><span>OP</span>·TCG BUILDER <span style="font-size:9px;color:var(--txt3);font-weight:400;letter-spacing:0">v2.6.0</span></div>
+  <div class="logo" onclick="resetToSearch()" style="cursor:pointer;touch-action:manipulation"><span>OP</span>·TCG BUILDER <span style="font-size:9px;color:var(--txt3);font-weight:400;letter-spacing:0">v2.7.0</span></div>
   <button class="hbtn" id="hUnlockBtn" onclick="toggleUnlock()" title="枚数制限解除" style="display:none;font-size:18px">🔒</button>
   <button class="hbtn" id="hDkBtn" onclick="openMDk()" title="デッキ" style="display:none">
     🃏<span class="hbdg v" id="hDkBdg">0</span>
@@ -694,12 +694,15 @@ html,body{height:100%;background:var(--bg);color:var(--txt);font-family:'Noto Sa
 
 <script>
 // ════════════════════════════════════════════════════════
-// OP·TCG BUILDER v2.6.0 — IndexedDB対応
+// OP·TCG BUILDER v2.7.0 — IndexedDB対応
 // DB: optcg_db v1
 //   stores: cards(keyPath:id), decks(keyPath:id), ui(keyPath:key)
 // ════════════════════════════════════════════════════════
 
 const CM={赤:'#ef4444',青:'#3b82f6',緑:'#22c55e',黄:'#f59e0b',紫:'#a855f7',黒:'#8b95a8'};
+// 色の並び順（赤→青→緑→黄→紫→黒）
+const COLOR_ORDER={赤:0,青:1,緑:2,黄:3,紫:4,黒:5};
+function colorRank(c){const col=c.color||(c.colors&&c.colors[0]);return COLOR_ORDER[col]??9;}
 
 // kana normalize
 function toHira(str){return str.replace(/[\u30A1-\u30F6]/g,ch=>String.fromCharCode(ch.charCodeAt(0)-0x60));}
@@ -987,9 +990,9 @@ function doSearch(){
   else if(s==='pd')res.sort((a,b)=>(b.power||0)-(a.power||0)||byId(a,b));
   else if(s==='na')res.sort((a,b)=>a.name.localeCompare(b.name,'ja'));
   else{
-    // デフォルト: タイプ(リーダー→キャラ→イベント→ステージ) → コスト昇順 → カード番号順
+    // デフォルト: タイプ(リーダー→キャラ→イベント→ステージ) → コスト昇順 → 色順 → カード番号順
     const typeOrder={リーダー:0,キャラ:1,イベント:2,ステージ:3};
-    res.sort((a,b)=>(typeOrder[a.type]??4)-(typeOrder[b.type]??4)||(a.cost||0)-(b.cost||0)||byId(a,b));
+    res.sort((a,b)=>(typeOrder[a.type]??4)-(typeOrder[b.type]??4)||(a.cost||0)-(b.cost||0)||colorRank(a)-colorRank(b)||byId(a,b));
   }
   const cnt=document.getElementById('rCnt');if(cnt)cnt.textContent=res.length;
   renderGrid(res,'cGrid',false);
@@ -1013,6 +1016,8 @@ function doBuildSearch(){
     if(to!==0)return to;
     const co=(a.cost||0)-(b.cost||0);
     if(co!==0)return co;
+    const cl=colorRank(a)-colorRank(b);
+    if(cl!==0)return cl;
     return(a.id||'').localeCompare(b.id||'',undefined,{numeric:true});
   });
   renderGrid(res,'dCGrid',true);
@@ -1165,6 +1170,8 @@ function updDkPanel(){
     if(to!==0)return to;
     const co=(ca.cost||0)-(cb.cost||0);
     if(co!==0)return co;
+    const cl=colorRank(ca)-colorRank(cb);
+    if(cl!==0)return cl;
     return(ca.id||'').localeCompare(cb.id||'',undefined,{numeric:true});
   });
   // タイプ別にセクションヘッダーを挿入
