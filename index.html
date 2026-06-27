@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,viewport-fit=cover">
-<title>OP·TCG Builder v2.5.0</title>
+<title>OP·TCG Builder v2.6.0</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;700;900&family=DM+Mono:wght@500&display=swap" rel="stylesheet">
 <style>
@@ -317,7 +317,7 @@ html,body{height:100%;background:var(--bg);color:var(--txt);font-family:'Noto Sa
 </div>
 
 <header class="hd">
-  <div class="logo" onclick="resetToSearch()" style="cursor:pointer;touch-action:manipulation"><span>OP</span>·TCG BUILDER <span style="font-size:9px;color:var(--txt3);font-weight:400;letter-spacing:0">v2.5.0</span></div>
+  <div class="logo" onclick="resetToSearch()" style="cursor:pointer;touch-action:manipulation"><span>OP</span>·TCG BUILDER <span style="font-size:9px;color:var(--txt3);font-weight:400;letter-spacing:0">v2.6.0</span></div>
   <button class="hbtn" id="hUnlockBtn" onclick="toggleUnlock()" title="枚数制限解除" style="display:none;font-size:18px">🔒</button>
   <button class="hbtn" id="hDkBtn" onclick="openMDk()" title="デッキ" style="display:none">
     🃏<span class="hbdg v" id="hDkBdg">0</span>
@@ -335,7 +335,7 @@ html,body{height:100%;background:var(--bg);color:var(--txt);font-family:'Noto Sa
         <div><span class="rcnt" id="rCnt">0</span><span class="rlbl">枚</span></div>
         <div style="display:flex;gap:6px;align-items:center">
           <select class="sortsel" id="sortSel" onchange="doSearch()">
-            <option value="def">デフォルト</option><option value="ca">コスト↑</option>
+            <option value="def">標準（タイプ・番号順）</option><option value="ca">コスト↑</option>
             <option value="cd">コスト↓</option><option value="pd">パワー↓</option><option value="na">名前順</option>
           </select>
           <div class="vbtns">
@@ -694,7 +694,7 @@ html,body{height:100%;background:var(--bg);color:var(--txt);font-family:'Noto Sa
 
 <script>
 // ════════════════════════════════════════════════════════
-// OP·TCG BUILDER v2.5.0 — IndexedDB対応
+// OP·TCG BUILDER v2.6.0 — IndexedDB対応
 // DB: optcg_db v1
 //   stores: cards(keyPath:id), decks(keyPath:id), ui(keyPath:key)
 // ════════════════════════════════════════════════════════
@@ -981,10 +981,16 @@ function doSearch(){
     return true;
   });
   const s=document.getElementById('sortSel')?.value||'def';
-  if(s==='ca')res.sort((a,b)=>(a.cost||0)-(b.cost||0));
-  else if(s==='cd')res.sort((a,b)=>(b.cost||0)-(a.cost||0));
-  else if(s==='pd')res.sort((a,b)=>(b.power||0)-(a.power||0));
+  const byId=(a,b)=>(a.id||'').localeCompare(b.id||'',undefined,{numeric:true});
+  if(s==='ca')res.sort((a,b)=>(a.cost||0)-(b.cost||0)||byId(a,b));
+  else if(s==='cd')res.sort((a,b)=>(b.cost||0)-(a.cost||0)||byId(a,b));
+  else if(s==='pd')res.sort((a,b)=>(b.power||0)-(a.power||0)||byId(a,b));
   else if(s==='na')res.sort((a,b)=>a.name.localeCompare(b.name,'ja'));
+  else{
+    // デフォルト: タイプ(リーダー→キャラ→イベント→ステージ) → コスト昇順 → カード番号順
+    const typeOrder={リーダー:0,キャラ:1,イベント:2,ステージ:3};
+    res.sort((a,b)=>(typeOrder[a.type]??4)-(typeOrder[b.type]??4)||(a.cost||0)-(b.cost||0)||byId(a,b));
+  }
   const cnt=document.getElementById('rCnt');if(cnt)cnt.textContent=res.length;
   renderGrid(res,'cGrid',false);
 }
