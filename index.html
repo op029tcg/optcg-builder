@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,viewport-fit=cover">
-<title>OP·TCG Builder v2.4.0</title>
+<title>OP·TCG Builder v2.5.0</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;700;900&family=DM+Mono:wght@500&display=swap" rel="stylesheet">
 <style>
@@ -317,7 +317,7 @@ html,body{height:100%;background:var(--bg);color:var(--txt);font-family:'Noto Sa
 </div>
 
 <header class="hd">
-  <div class="logo" onclick="resetToSearch()" style="cursor:pointer;touch-action:manipulation"><span>OP</span>·TCG BUILDER <span style="font-size:9px;color:var(--txt3);font-weight:400;letter-spacing:0">v2.4.0</span></div>
+  <div class="logo" onclick="resetToSearch()" style="cursor:pointer;touch-action:manipulation"><span>OP</span>·TCG BUILDER <span style="font-size:9px;color:var(--txt3);font-weight:400;letter-spacing:0">v2.5.0</span></div>
   <button class="hbtn" id="hUnlockBtn" onclick="toggleUnlock()" title="枚数制限解除" style="display:none;font-size:18px">🔒</button>
   <button class="hbtn" id="hDkBtn" onclick="openMDk()" title="デッキ" style="display:none">
     🃏<span class="hbdg v" id="hDkBdg">0</span>
@@ -694,7 +694,7 @@ html,body{height:100%;background:var(--bg);color:var(--txt);font-family:'Noto Sa
 
 <script>
 // ════════════════════════════════════════════════════════
-// OP·TCG BUILDER v2.4.0 — IndexedDB対応
+// OP·TCG BUILDER v2.5.0 — IndexedDB対応
 // DB: optcg_db v1
 //   stores: cards(keyPath:id), decks(keyPath:id), ui(keyPath:key)
 // ════════════════════════════════════════════════════════
@@ -767,7 +767,19 @@ function dbPutBatch(st,items,onProg){
 
 // ════════ キャッシュ ════════
 let _cards=[], _decks=[], _sets=[];
-function getAllCards(){return[...CARDS,..._cards];}
+// カードタイプの日英ゆれを正規化（キャラ/Character/キャラクター等 → キャラ）
+const _TYPE_MAP={
+  'キャラ':'キャラ','キャラクター':'キャラ','character':'キャラ','char':'キャラ','chara':'キャラ',
+  'リーダー':'リーダー','leader':'リーダー',
+  'イベント':'イベント','event':'イベント',
+  'ステージ':'ステージ','stage':'ステージ'
+};
+function normType(t){
+  if(t==null)return t;
+  const s=t.toString().trim();
+  return _TYPE_MAP[s.toLowerCase()]||_TYPE_MAP[s]||s;
+}
+function getAllCards(){const all=[...CARDS,..._cards];all.forEach(c=>{if(c&&c.type!=null)c.type=normType(c.type);});return all;}
 
 // ════════ localStorageマイグレーション ════════
 async function migrateLegacy(onMsg){
@@ -993,7 +1005,9 @@ function doBuildSearch(){
   res.sort((a,b)=>{
     const to=(typeOrder[a.type]??3)-(typeOrder[b.type]??3);
     if(to!==0)return to;
-    return(a.cost||0)-(b.cost||0);
+    const co=(a.cost||0)-(b.cost||0);
+    if(co!==0)return co;
+    return(a.id||'').localeCompare(b.id||'',undefined,{numeric:true});
   });
   renderGrid(res,'dCGrid',true);
 }
@@ -1143,7 +1157,9 @@ function updDkPanel(){
     if(!ca||!cb)return 0;
     const to=(typeOrder[ca.type]??3)-(typeOrder[cb.type]??3);
     if(to!==0)return to;
-    return(ca.cost||0)-(cb.cost||0);
+    const co=(ca.cost||0)-(cb.cost||0);
+    if(co!==0)return co;
+    return(ca.id||'').localeCompare(cb.id||'',undefined,{numeric:true});
   });
   // タイプ別にセクションヘッダーを挿入
   let lastType=null;
@@ -1533,7 +1549,7 @@ function applyAI(c){
   const sv=(id,v)=>{const e=document.getElementById(id);if(e&&v!=null)e.value=v;};
   sv('rN',c.name);sv('rNo',c.id);sv('rRar',c.rarity);sv('rCost',c.cost);sv('rTrait',c.trait);sv('rEff',c.effect);
   if(c.power!=null){rStats.power=c.power;sv('rPow',c.power);}
-  if(c.type){const btn=document.querySelector(`.regtypebtn[data-type="${c.type}"]`);if(btn)swType(btn);}
+  if(c.type){const btn=document.querySelector(`.regtypebtn[data-type="${normType(c.type)}"]`);if(btn)swType(btn);}
   if(c.colors){rColors=[];document.querySelectorAll('.copt').forEach(el=>{const s=(c.colors||[]).includes(el.dataset.color);el.classList.toggle('sel',s);if(s)rColors.push(el.dataset.color);});}
   updPrev();
 }
@@ -1546,7 +1562,7 @@ async function submitCard(){
   const exIdx=_cards.findIndex(c=>c.id===id);
   if(!editId&&exIdx>=0&&!await customConfirm(`ID "${id}" は既に存在します。上書きしますか？`,'上書き'))return;
   const nc={
-    id,name,type:rType,color:rColors[0],colors:[...rColors],
+    id,name,type:normType(rType),color:rColors[0],colors:[...rColors],
     cost:parseInt(document.getElementById('rCost')?.value)||rStats.cost||0,
     power:parseInt(document.getElementById('rPow')?.value)||rStats.power||0,
     counter:rStats.counter,life:rStats.life,
@@ -1680,14 +1696,13 @@ function processJsonFile(file){
 async function importJsonCards(arr){
   const prog=document.getElementById('jsonProg'),bar=document.getElementById('jsonProgBar'),txt=document.getElementById('jsonProgTxt'),res=document.getElementById('jsonResult');
   if(prog)prog.style.display='block';if(res)res.style.display='none';
-  const typeMap={CHARACTER:'キャラ',LEADER:'リーダー',EVENT:'イベント',STAGE:'ステージ'};
   const exMap=new Map(_cards.map(c=>[c.id,c]));
   let added=0,updated=0,skipped=0;
   const toSave=[];
   arr.forEach(d=>{
     const id=d.card_id||d.id;if(!id){skipped++;return;}
     const rawColor=d.color||'';const colors=rawColor.split('/').map(c=>c.trim()).filter(Boolean);const color=colors[0]||'黒';
-    const type=typeMap[d.type]||d.type||'キャラ';
+    const type=normType(d.type||'キャラ');
     const parallel=!!(d.name&&(d.name.includes('Alt art')||d.name.includes('パラレル')));
     const ex=exMap.get(id);
     const nc={id,name:d.name||'',type,color,colors,cost:d.cost||0,power:d.power||0,counter:d.counter||0,
