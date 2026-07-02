@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,viewport-fit=cover">
-<title>OP·TCG Builder v2.7.0</title>
+<title>OP·TCG Builder v2.8.0</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;700;900&family=DM+Mono:wght@500&display=swap" rel="stylesheet">
 <style>
@@ -317,7 +317,7 @@ html,body{height:100%;background:var(--bg);color:var(--txt);font-family:'Noto Sa
 </div>
 
 <header class="hd">
-  <div class="logo" onclick="resetToSearch()" style="cursor:pointer;touch-action:manipulation"><span>OP</span>·TCG BUILDER <span style="font-size:9px;color:var(--txt3);font-weight:400;letter-spacing:0">v2.7.0</span></div>
+  <div class="logo" onclick="resetToSearch()" style="cursor:pointer;touch-action:manipulation"><span>OP</span>·TCG BUILDER <span style="font-size:9px;color:var(--txt3);font-weight:400;letter-spacing:0">v2.8.0</span></div>
   <button class="hbtn" id="hUnlockBtn" onclick="toggleUnlock()" title="枚数制限解除" style="display:none;font-size:18px">🔒</button>
   <button class="hbtn" id="hDkBtn" onclick="openMDk()" title="デッキ" style="display:none">
     🃏<span class="hbdg v" id="hDkBdg">0</span>
@@ -366,6 +366,7 @@ html,body{height:100%;background:var(--bg);color:var(--txt);font-family:'Noto Sa
       <div class="dcsbar">
         <input class="sinp" id="dcQ" type="text" placeholder="カードを検索…" oninput="doBuildSearch()" autocomplete="off" spellcheck="false">
         <div class="dcnt"><span id="dPN">0</span><span style="font-size:9px;color:var(--txt2);font-weight:400"> / 50</span></div>
+        <button class="fbtn" id="dkOnlyBtn" onclick="toggleDkOnly()" style="width:auto;padding:0 8px;font-size:10px;background:var(--sur2);color:var(--txt2);border:1px solid var(--brd2)">デッキ内</button>
         <button class="fbtn" onclick="openFD2()">⚙<span class="fbdg" id="fBdg2"></span></button>
       </div>
       <div class="dprog">
@@ -394,6 +395,7 @@ html,body{height:100%;background:var(--bg);color:var(--txt);font-family:'Noto Sa
         <div id="dListBody" style="width:110px;overflow-y:auto;border-left:1px solid var(--brd);background:var(--sur);flex-shrink:0"></div>
       </div>
       <div class="dsavebar">
+        <button class="btn btnd" id="dkUndoBtn" onclick="undoDk()" style="opacity:.35">↩</button>
         <button class="btn btnd" onclick="clrDeck()">🗑</button>
         <button class="btn btnp" onclick="saveDeckDB()">💾 保存</button>
         <button class="btn btns" onclick="exportCurrentDeck()" style="background:var(--sur2);border:1px solid var(--brd)">📤 出力</button>
@@ -694,7 +696,7 @@ html,body{height:100%;background:var(--bg);color:var(--txt);font-family:'Noto Sa
 
 <script>
 // ════════════════════════════════════════════════════════
-// OP·TCG BUILDER v2.7.0 — IndexedDB対応
+// OP·TCG BUILDER v2.8.0 — IndexedDB対応
 // DB: optcg_db v1
 //   stores: cards(keyPath:id), decks(keyPath:id), ui(keyPath:key)
 // ════════════════════════════════════════════════════════
@@ -947,6 +949,7 @@ async function selLeader(id,el){
     bad.forEach(did=>delete deck[did]);
   }
   leader=c;
+  _dkHist=[];updUndoBtn();
   document.querySelectorAll('.lopt').forEach(e=>e.classList.remove('sel'));
   el?.classList.add('sel');
   toast(`${c.name} をリーダーに設定`);
@@ -1003,6 +1006,7 @@ function doBuildSearch(){
   const lc=leader.colors||[leader.color];
   let res=getAllCards().filter(c=>{
     if(c.type==='リーダー')return false;
+    if(dkOnly&&!deck[c.id])return false;
     if(!(c.colors||[c.color]).some(col=>lc.includes(col)))return false;
     if(q&&!norm(c.name).includes(q)&&!norm(c.id||'').includes(q)&&!norm(c.effect||'').includes(q))return false;
     if(F2.cost.size&&!F2.cost.has(String(c.cost||0)))return false;
@@ -1096,6 +1100,24 @@ function openFD2(){document.getElementById('fOv2')?.classList.add('open');docume
 function closeFD2(){document.getElementById('fOv2')?.classList.remove('open');document.getElementById('fDrw2')?.classList.remove('open');}
 
 // ════════ DECK ════════
+// Undo履歴（デッキ変更前のスナップショットを保持、最大30件）
+let _dkHist=[];
+function pushDkHist(){_dkHist.push({...deck});if(_dkHist.length>30)_dkHist.shift();updUndoBtn();}
+function undoDk(){
+  if(!_dkHist.length){toast('戻す操作がありません');return;}
+  deck=_dkHist.pop();
+  updDkAll();doBuildSearch();updUndoBtn();
+  toast('↩ 元に戻しました');
+}
+function updUndoBtn(){const b=document.getElementById('dkUndoBtn');if(b)b.style.opacity=_dkHist.length?'1':'.35';}
+// デッキ内のみ表示トグル
+let dkOnly=false;
+function toggleDkOnly(){
+  dkOnly=!dkOnly;
+  const b=document.getElementById('dkOnlyBtn');
+  if(b){b.style.background=dkOnly?'var(--gold)':'var(--sur2)';b.style.color=dkOnly?'#000':'var(--txt2)';b.style.borderColor=dkOnly?'var(--gold)':'var(--brd2)';}
+  doBuildSearch();
+}
 // 制限解除フラグ
 let unlocked=false;
 function toggleUnlock(){
@@ -1127,11 +1149,11 @@ function addCard(id){
   if(cur===0){
     if(!unlocked&&sameO>=4){toast('同一カードは合計4枚までです');return;}
     if(Object.values(deck).reduce((s,n)=>s+n,0)>=deckMax){toast(`デッキは${deckMax}枚までです`);return;}
-    deck[id]=1;
+    pushDkHist();deck[id]=1;
   }else if(cur<max){
     if(Object.values(deck).reduce((s,n)=>s+n,0)>=deckMax){toast(`デッキは${deckMax}枚までです`);return;}
-    deck[id]=cur+1;
-  }else{delete deck[id];}
+    pushDkHist();deck[id]=cur+1;
+  }else{pushDkHist();delete deck[id];}
   updBuildBadges();
   const tot=Object.values(deck).reduce((s,n)=>s+n,0);
   const pct=Math.min(100,(tot/50)*100);
@@ -1143,8 +1165,8 @@ function addCard(id){
   const mk=document.getElementById('mdkBdg');if(mk)mk.textContent=tot;
   updDkPanel();
 }
-function rmCard(id){if(!deck[id])return;deck[id]--;if(deck[id]<=0)delete deck[id];updDkAll();doBuildSearch();}
-async function clrDeck(){if(!await customConfirm('デッキをクリアしますか？','クリア'))return;deck={};updDkAll();doBuildSearch();}
+function rmCard(id){if(!deck[id])return;pushDkHist();deck[id]--;if(deck[id]<=0)delete deck[id];updDkAll();doBuildSearch();}
+async function clrDeck(){if(!await customConfirm('デッキをクリアしますか？','クリア'))return;pushDkHist();deck={};updDkAll();doBuildSearch();}
 function updDkAll(){
   const tot=Object.values(deck).reduce((s,n)=>s+n,0);
   const pct=Math.min(100,(tot/50)*100);
@@ -1397,7 +1419,7 @@ function renderSaved(){
 function loadDeck(deckId){
   const d=_decks.find(x=>x.id===deckId);if(!d)return;
   const lr=getAllCards().find(c=>c.id===d.leader);if(lr)leader=lr;
-  deck={...d.deck};updDkAll();goTab('deck');goStep(2);
+  deck={...d.deck};_dkHist=[];updUndoBtn();updDkAll();goTab('deck');goStep(2);
   toast(`「${d.name}」を読み込みました`);
 }
 async function delDeck(deckId){
